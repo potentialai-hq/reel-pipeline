@@ -53,6 +53,11 @@ def chime():
 def main():
     src, dst = sys.argv[1], sys.argv[2]
     hop = float(sys.argv[3]) if len(sys.argv) > 3 else 50.5
+    if hop < 0:
+        # Финала нет: перезвон не нужен, звук и видео копируются как есть.
+        run(["ffmpeg", "-y", "-v", "error", "-i", src, "-c", "copy", dst])
+        print(f"OK {dst} (без грейда и без перезвона: финал отключён)")
+        return
     tmp = Path(tempfile.mkdtemp(prefix="polish_"))
     import wave
     wav = tmp / "chime.wav"
