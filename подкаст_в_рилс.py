@@ -30,7 +30,7 @@ def разобрать_куски(текст: str) -> list[tuple[float, float]]:
         if b <= a:
             raise SystemExit(f"кусок {часть}: конец должен быть больше начала")
         куски.append((a, b))
-    return sorted(куски)
+    return куски  # порядок монтажа сохраняется, окна считаются отдельно
 
 
 def вырезать_окно(мастер: Path, выход: Path, начало: float, конец: float) -> None:
@@ -45,25 +45,70 @@ def вырезать_окно(мастер: Path, выход: Path, начало
     )
 
 
-def слова_окна(слова_шлюза: Path, начало: float, конец: float) -> dict:
+ЗАЗОР_ОКОН = 20.0  # секунд между отрезками мастера, до которых они идут одним окном
+
+
+def окна_кусков(куски: list[tuple[float, float]]) -> list[list[float]]:
+    """Окна мастера с запасом по краям; далёкие отрезки режутся отдельными окнами."""
+    окна: list[list[float]] = []
+    for a, b in sorted(куски):
+        a0, b0 = max(a - ЗАПАС, 0.0), b + ЗАПАС
+        if окна and a0 - окна[-1][1] < ЗАЗОР_ОКОН:
+            окна[-1][1] = max(окна[-1][1], b0)
+        else:
+            окна.append([a0, b0])
+    return окна
+
+
+def в_время_сырья(t: float, окна: list[list[float]]) -> float:
+    """Переводит секунду мастера в секунду склеенного сырья."""
+    сдвиг = 0.0
+    for a0, b0 in окна:
+        if a0 <= t <= b0:
+            return round(t - a0 + сдвиг, 3)
+        сдвиг += b0 - a0
+    raise SystemExit(f"секунда мастера {t} вне окон {окна}")
+
+
+def вырезать_окна(мастер: Path, выход: Path, окна: list[list[float]]) -> None:
+    if len(окна) == 1:
+        вырезать_окно(мастер, выход, окна[0][0], окна[0][1])
+        return
+    части = []
+    for н, (a0, b0) in enumerate(окна):
+        часть = выход.with_name(f"{выход.stem}_окно{н}.mp4")
+        вырезать_окно(мастер, часть, a0, b0)
+        части.append(часть)
+    список = выход.with_name(f"{выход.stem}_окна.txt")
+    список.write_text("".join(f"file '{ч.name}'\n" for ч in части), encoding="utf-8")
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(список),
+                    "-c", "copy", "-movflags", "+faststart", str(выход)], check=True)
+    for ч in части:
+        ч.unlink()
+    список.unlink()
+
+
+def слова_окна(слова_шлюза: Path, окна: list[list[float]]) -> dict:
     данные = json.loads(слова_шлюза.read_text(encoding="utf-8"))
     слова = []
-    for сегмент in данные["segments"]:
-        for w in сегмент.get("words") or []:
-            s, e = float(w["start"]), float(w["end"])
-            if e < начало or s > конец:
-                continue
-            слова.append({"word": str(w["word"]).strip(),
-                          "start": round(max(s - начало, 0.0), 3),
-                          "end": round(min(e, конец) - начало, 3)})
-    return {"segments": [{"start": 0.0, "end": round(конец - начало, 3), "words": слова}]}
+    длина = sum(b0 - a0 for a0, b0 in окна)
+    for a0, b0 in окна:
+        for сегмент in данные["segments"]:
+            for w in сегмент.get("words") or []:
+                s, e = float(w["start"]), float(w["end"])
+                if e < a0 or s > b0:
+                    continue
+                слова.append({"word": str(w["word"]).strip(),
+                              "start": в_время_сырья(max(s, a0), окна),
+                              "end": в_время_сырья(min(e, b0), окна)})
+    return {"segments": [{"start": 0.0, "end": round(длина, 3), "words": слова}]}
 
 
-def описание(ролик: str, исходник: str, куски: list[tuple[float, float]], начало: float,
+def описание(ролик: str, исходник: str, куски: list[tuple[float, float]], окна: list[list[float]],
              обложка1: str, обложка2: str, заголовок: str) -> str:
     строки = ["---", f"ролик: {ролик}", f"исходник: {исходник}", "куски:"]
     for a, b in куски:
-        строки.append(f"  - [{a - начало:.2f}, {b - начало:.2f}]")
+        строки.append(f"  - [{в_время_сырья(a, окна):.2f}, {в_время_сырья(b, окна):.2f}]")
     строки += ["без_субтитров: []", "правки:", "  всегда: {}", "  по_времени: []",
                "финал:", '  исходник: ""', "  куски: []", "обложка:",
                f'  строка1: "{обложка1}"', f'  строка2: "{обложка2}"', '  стикер: ""',
@@ -86,18 +131,17 @@ def main(аргументы=None) -> int:
 
     корень = Path(a.корень).resolve()
     куски = разобрать_куски(a.куски)
-    начало = max(куски[0][0] - ЗАПАС, 0.0)
-    конец = куски[-1][1] + ЗАПАС
+    окна = окна_кусков(куски)
     исходник = f"{a.ролик}.mp4"
 
-    вырезать_окно(Path(a.мастер), корень / "raw" / исходник, начало, конец)
+    вырезать_окна(Path(a.мастер), корень / "raw" / исходник, окна)
     (корень / "transcripts").mkdir(exist_ok=True)
     (корень / "transcripts" / f"{a.ролик}.json").write_text(
-        json.dumps(слова_окна(Path(a.слова), начало, конец), ensure_ascii=False, indent=1), encoding="utf-8")
+        json.dumps(слова_окна(Path(a.слова), окна), ensure_ascii=False, indent=1), encoding="utf-8")
     (корень / "Рилсы").mkdir(exist_ok=True)
     md = корень / "Рилсы" / f"{a.ролик}.md"
-    md.write_text(описание(a.ролик, исходник, куски, начало, a.обложка1, a.обложка2, a.заголовок), encoding="utf-8")
-    print(f"окно {начало:.1f}-{конец:.1f} с · raw/{исходник} · transcripts/{a.ролик}.json · {md.relative_to(корень)}")
+    md.write_text(описание(a.ролик, исходник, куски, окна, a.обложка1, a.обложка2, a.заголовок), encoding="utf-8")
+    print(f"окна {', '.join(f'{a0:.1f}-{b0:.1f}' for a0, b0 in окна)} · raw/{исходник} · transcripts/{a.ролик}.json · {md.relative_to(корень)}")
     return 0
 
 
