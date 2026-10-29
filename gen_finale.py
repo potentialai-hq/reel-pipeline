@@ -9,6 +9,7 @@
 Запуск: python3 gen_finale.py <вход.mp4> <выход.mp4> [Фирменный стиль.md]
 """
 import math, random, subprocess, sys, tempfile
+import shutil
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
@@ -113,33 +114,35 @@ def main():
         return False
     base = dur(src)
     tmp = Path(tempfile.mkdtemp(prefix="finale_"))
+    try:
 
-    hop = base - HOP_BEFORE_END                 # абсолютный старт хопа в рилсе
+        hop = base - HOP_BEFORE_END                 # абсолютный старт хопа в рилсе
 
-    # 1) хвост-фриз: клонируем последний кадр + тишина (пшш уже в аудио финала)
-    ext = tmp / "ext.mp4"
-    run(["ffmpeg", "-y", "-v", "error", "-i", src,
-         "-vf", f"tpad=stop_mode=clone:stop_duration={TAIL}",
-         "-af", f"apad=pad_dur={TAIL}",
-         "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
-         "-c:a", "aac", "-b:a", "192k", str(ext)])
-    fin_dur = (base + TAIL) - hop               # длительность анимации
-    fps, n = параметры_анимации(fin_dur, стиль)
-    for i in range(n):
-        frame(i / fps, подпись).save(tmp / f"f{i:04d}.png")
-    mov = tmp / "finale.mov"
-    run(["ffmpeg", "-y", "-v", "error", "-framerate", str(fps), "-i", str(tmp / "f%04d.png"),
-         "-c:v", "png", str(mov)])
+        # 1) хвост-фриз: клонируем последний кадр + тишина (пшш уже в аудио финала)
+        ext = tmp / "ext.mp4"
+        run(["ffmpeg", "-y", "-v", "error", "-i", src,
+             "-vf", f"tpad=stop_mode=clone:stop_duration={TAIL}",
+             "-af", f"apad=pad_dur={TAIL}",
+             "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
+             "-c:a", "aac", "-b:a", "192k", str(ext)])
+        fin_dur = (base + TAIL) - hop               # длительность анимации
+        fps, n = параметры_анимации(fin_dur, стиль)
+        for i in range(n):
+            frame(i / fps, подпись).save(tmp / f"f{i:04d}.png")
+        mov = tmp / "finale.mov"
+        run(["ffmpeg", "-y", "-v", "error", "-framerate", str(fps), "-i", str(tmp / "f%04d.png"),
+             "-c:v", "png", str(mov)])
 
-    # 2) overlay со смещением
-    run(["ffmpeg", "-y", "-v", "error", "-i", str(ext), "-itsoffset", f"{hop:.3f}", "-i", str(mov),
-         "-filter_complex", f"[0:v][1:v]overlay=0:0:eof_action=pass:enable='gte(t,{hop:.3f})'[v]",
-         "-map", "[v]", "-map", "0:a",
-         "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
-         "-c:a", "copy", dst])
-    print(f"OK {dst}  (хоп с {hop:.2f}s, анимация {fin_dur:.2f}s, итог {base+TAIL:.2f}s)")
-    return True
-
+        # 2) overlay со смещением
+        run(["ffmpeg", "-y", "-v", "error", "-i", str(ext), "-itsoffset", f"{hop:.3f}", "-i", str(mov),
+             "-filter_complex", f"[0:v][1:v]overlay=0:0:eof_action=pass:enable='gte(t,{hop:.3f})'[v]",
+             "-map", "[v]", "-map", "0:a",
+             "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
+             "-c:a", "copy", dst])
+        print(f"OK {dst}  (хоп с {hop:.2f}s, анимация {fin_dur:.2f}s, итог {base+TAIL:.2f}s)")
+        return True
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 if __name__ == "__main__":
     main()

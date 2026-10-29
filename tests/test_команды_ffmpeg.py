@@ -22,6 +22,13 @@ class _ПустойКадр:
         pass
 
 
+def _отдельная_папка(tmp_path, prefix):
+    """Каждый модуль получает свою временную папку: после сборки модуль её убирает."""
+    папка = tmp_path / prefix
+    папка.mkdir(exist_ok=True)
+    return папка
+
+
 def _стиль_с_зумом(зум):
     стиль = deepcopy(УМОЛЧАНИЯ)
     стиль["монтаж"]["зум"] = зум
@@ -53,7 +60,7 @@ def _команды_всех_модулей(monkeypatch, tmp_path: Path):
         "финал": {"подпись": "Подпись"},
     })
     monkeypatch.setattr(gen_finale, "dur", lambda _: 2.0)
-    monkeypatch.setattr(gen_finale.tempfile, "mkdtemp", lambda prefix: str(tmp_path))
+    monkeypatch.setattr(gen_finale.tempfile, "mkdtemp", lambda prefix: str(_отдельная_папка(tmp_path, prefix)))
     monkeypatch.setattr(gen_finale, "frame", lambda *_: _ПустойКадр())
     monkeypatch.setattr(gen_finale, "run", финал.append)
     monkeypatch.setattr(sys, "argv", ["gen_finale.py", "вход.mp4", "выход.mp4"])
@@ -65,7 +72,7 @@ def _команды_всех_модулей(monkeypatch, tmp_path: Path):
         "длительность": 2.2,
         "затухание": 0.4,
     })
-    monkeypatch.setattr(gen_cover.tempfile, "mkdtemp", lambda prefix: str(tmp_path))
+    monkeypatch.setattr(gen_cover.tempfile, "mkdtemp", lambda prefix: str(_отдельная_папка(tmp_path, prefix)))
     monkeypatch.setattr(gen_cover, "overlay_png", lambda *_: None)
     monkeypatch.setattr(gen_cover, "run", обложка.append)
     monkeypatch.setattr(sys, "argv", ["gen_cover.py", "ролик.md", "вход.mp4", "выход.mp4"])
@@ -75,7 +82,7 @@ def _команды_всех_модулей(monkeypatch, tmp_path: Path):
     музыка = []
     monkeypatch.setattr(gen_music, "dur", lambda _: 0.0)
     monkeypatch.setattr(gen_music, "pad", lambda _: gen_music.np.zeros(1, dtype="int16"))
-    monkeypatch.setattr(gen_music.tempfile, "mkdtemp", lambda prefix: str(tmp_path))
+    monkeypatch.setattr(gen_music.tempfile, "mkdtemp", lambda prefix: str(_отдельная_папка(tmp_path, prefix)))
     monkeypatch.setattr(gen_music, "run", музыка.append)
     monkeypatch.setattr(sys, "argv", ["gen_music.py", "вход.mp4", "выход.mp4"])
     gen_music.main()
@@ -83,7 +90,7 @@ def _команды_всех_модулей(monkeypatch, tmp_path: Path):
 
     полировка = []
     monkeypatch.setattr(gen_polish, "chime", lambda: gen_polish.np.zeros(1, dtype="int16"))
-    monkeypatch.setattr(gen_polish.tempfile, "mkdtemp", lambda prefix: str(tmp_path))
+    monkeypatch.setattr(gen_polish.tempfile, "mkdtemp", lambda prefix: str(_отдельная_папка(tmp_path, prefix)))
     monkeypatch.setattr(gen_polish, "run", полировка.append)
     monkeypatch.setattr(sys, "argv", ["gen_polish.py", "вход.mp4", "выход.mp4"])
     gen_polish.main()
@@ -98,7 +105,7 @@ def _команды_всех_модулей(monkeypatch, tmp_path: Path):
         return SimpleNamespace()
 
     monkeypatch.setattr(gen_scheme, "panel_png", lambda *_: None)
-    monkeypatch.setattr(gen_scheme.tempfile, "mkdtemp", lambda prefix: str(tmp_path))
+    monkeypatch.setattr(gen_scheme.tempfile, "mkdtemp", lambda prefix: str(_отдельная_папка(tmp_path, prefix)))
     monkeypatch.setattr(gen_scheme.subprocess, "run", subprocess_run)
     monkeypatch.setattr(gen_scheme, "загрузить_стиль", lambda _: _стиль_с_зумом(0.08))
     monkeypatch.setattr(sys, "argv", ["gen_scheme.py", "premium1", "вход.mp4", "выход.mp4"])

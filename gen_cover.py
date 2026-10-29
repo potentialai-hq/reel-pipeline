@@ -6,6 +6,7 @@
 Запуск: python3 gen_cover.py <ролик.md> <вход.mp4> <выход.mp4> [Фирменный стиль.md]
 """
 import sys, subprocess, math, random, tempfile
+import shutil
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
@@ -113,18 +114,20 @@ def main():
         sys.argv[4] if len(sys.argv) > 4 else "Фирменный стиль.md",
     )
     tmp = Path(tempfile.mkdtemp(prefix="cover_"))
-    png = tmp / "cover.png"
-    overlay_png(параметры, png)
-    длительность, затухание = параметры["длительность"], параметры["затухание"]
-    run(["ffmpeg", "-y", "-v", "error", "-i", src, "-loop", "1", "-t", str(длительность), "-i", str(png),
-         "-filter_complex",
-         f"[1:v]format=rgba,fade=t=out:st={длительность-затухание}:d={затухание}:alpha=1[ov];"
-         f"[0:v][ov]overlay=0:0:enable='lte(t,{длительность})'[v]",
-         "-map", "[v]", "-map", "0:a",
-         "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
-         "-c:a", "copy", dst])
-    print(f"OK обложка -> {dst}")
-
+    try:
+        png = tmp / "cover.png"
+        overlay_png(параметры, png)
+        длительность, затухание = параметры["длительность"], параметры["затухание"]
+        run(["ffmpeg", "-y", "-v", "error", "-i", src, "-loop", "1", "-t", str(длительность), "-i", str(png),
+             "-filter_complex",
+             f"[1:v]format=rgba,fade=t=out:st={длительность-затухание}:d={затухание}:alpha=1[ov];"
+             f"[0:v][ov]overlay=0:0:enable='lte(t,{длительность})'[v]",
+             "-map", "[v]", "-map", "0:a",
+             "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
+             "-c:a", "copy", dst])
+        print(f"OK обложка -> {dst}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 if __name__ == "__main__":
     main()

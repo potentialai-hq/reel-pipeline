@@ -7,6 +7,7 @@
 Запуск: python3 gen_polish.py cut/19_06_05_final.mp4 cut/19_06_05_polished.mp4 [hop_sec]
 """
 import subprocess, sys, tempfile
+import shutil
 import numpy as np
 from pathlib import Path
 
@@ -59,21 +60,23 @@ def main():
         print(f"OK {dst} (без грейда и без перезвона: финал отключён)")
         return
     tmp = Path(tempfile.mkdtemp(prefix="polish_"))
-    import wave
-    wav = tmp / "chime.wav"
-    with wave.open(str(wav), "wb") as w:
-        w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
-        w.writeframes(chime().tobytes())
-    delay = int(hop * 1000)
-    # БЕЗ цветокора — оригинальный цвет (видео копируется), только перезвон в аудио
-    run(["ffmpeg", "-y", "-v", "error", "-i", src, "-i", str(wav),
-         "-filter_complex",
-         f"[1:a]adelay={delay}|{delay}[c];"
-         f"[0:a][c]amix=inputs=2:duration=first:normalize=0[a]",
-         "-map", "0:v", "-map", "[a]", "-c:v", "copy",
-         "-c:a", "aac", "-b:a", "192k", dst])
-    print(f"OK {dst} (без грейда, перезвон на {hop:.1f}с)")
-
+    try:
+        import wave
+        wav = tmp / "chime.wav"
+        with wave.open(str(wav), "wb") as w:
+            w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
+            w.writeframes(chime().tobytes())
+        delay = int(hop * 1000)
+        # БЕЗ цветокора — оригинальный цвет (видео копируется), только перезвон в аудио
+        run(["ffmpeg", "-y", "-v", "error", "-i", src, "-i", str(wav),
+             "-filter_complex",
+             f"[1:a]adelay={delay}|{delay}[c];"
+             f"[0:a][c]amix=inputs=2:duration=first:normalize=0[a]",
+             "-map", "0:v", "-map", "[a]", "-c:v", "copy",
+             "-c:a", "aac", "-b:a", "192k", dst])
+        print(f"OK {dst} (без грейда, перезвон на {hop:.1f}с)")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 if __name__ == "__main__":
     main()

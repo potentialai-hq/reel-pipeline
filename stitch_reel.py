@@ -18,7 +18,7 @@
 
 Использование: python3 stitch_reel.py plan/04_harness.json [Фирменный стиль.md]
 """
-import json, subprocess, sys, tempfile
+import json, shutil, subprocess, sys, tempfile
 from pathlib import Path
 from PIL import Image
 
@@ -138,6 +138,13 @@ def main():
     plan = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
     стиль = загрузить_стиль(sys.argv[2] if len(sys.argv) > 2 else "Фирменный стиль.md")
     tmp = Path(tempfile.mkdtemp(prefix="reel_"))
+    try:
+        _собрать(plan, стиль, tmp)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _собрать(plan, стиль, tmp):
     pieces = [build_piece(plan["src"], p, i, tmp, стиль) for i, p in enumerate(plan["pieces"])]
 
     out = Path(plan["out"])

@@ -5,6 +5,7 @@
 Запуск: python3 gen_music.py <видео> <выход.mp4> [gain]
 """
 import subprocess, sys, tempfile, wave
+import shutil
 import numpy as np
 from pathlib import Path
 
@@ -80,18 +81,20 @@ def main():
     gain = float(sys.argv[3]) if len(sys.argv) > 3 else 0.11   # тихо
     style = sys.argv[4] if len(sys.argv) > 4 else "pad"        # pad | upbeat
     tmp = Path(tempfile.mkdtemp(prefix="music_"))
-    wav = tmp / "bed.wav"
-    track = upbeat(dur(src)) if style == "upbeat" else pad(dur(src))
-    with wave.open(str(wav), "wb") as w:
-        w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
-        w.writeframes(track.tobytes())
-    run(["ffmpeg", "-y", "-v", "error", "-i", src, "-i", str(wav),
-         "-filter_complex",
-         f"[1:a]volume={gain}[m];[0:a][m]amix=inputs=2:duration=first:normalize=0[a]",
-         "-map", "0:v", "-map", "[a]", "-c:v", "copy",
-         "-c:a", "aac", "-b:a", "192k", dst])
-    print(f"OK {dst} (подложка, gain={gain})")
-
+    try:
+        wav = tmp / "bed.wav"
+        track = upbeat(dur(src)) if style == "upbeat" else pad(dur(src))
+        with wave.open(str(wav), "wb") as w:
+            w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
+            w.writeframes(track.tobytes())
+        run(["ffmpeg", "-y", "-v", "error", "-i", src, "-i", str(wav),
+             "-filter_complex",
+             f"[1:a]volume={gain}[m];[0:a][m]amix=inputs=2:duration=first:normalize=0[a]",
+             "-map", "0:v", "-map", "[a]", "-c:v", "copy",
+             "-c:a", "aac", "-b:a", "192k", dst])
+        print(f"OK {dst} (подложка, gain={gain})")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 if __name__ == "__main__":
     main()
