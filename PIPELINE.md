@@ -162,6 +162,7 @@ python3 make_reel_<shoot>.py myreel    # полный конвейер -> cut/<s
 | `gen_polish.py` / `gen_music.py` | грейд (passthrough) / музыка-пэд |
 | `gen_scheme.py` | панель-схема в НИЖНЕЙ части кадра (обучающие рилсы: лицо↑ схема↓) |
 | `merge_<shoot>.py` | сценарий B: склейка клипов + субтитры |
+| `подкаст_в_рилс.py` | ролик из длинного подкаста: окно из мастера в `raw/`, слова шлюза myos-transcribe в формате Whisper в `transcripts/`, описание в `Рилсы/`; дальше `собрать_рилс.py` |
 | `find_stutters.py` / `find_deadair.py` | детекторы запинок / тишины |
 | `gen_lut.py` | генератор HLG→SDR LUT (legacy; цвет теперь через тонмап.py) |
 
