@@ -75,6 +75,8 @@ def main() -> int:
     п.add_argument("--суффикс", default="-cam")
     п.add_argument("--смещения", default="")
     п.add_argument("--корень", default=".")
+    п.add_argument("--зазор", type=float, default=None,
+                   help="зазор между окнами; задать тот же, что был у описания (старые описания резались одним окном: 999)")
     a = п.parse_args()
     корень = Path(a.корень).resolve()
     md = Path(a.описание)
@@ -83,7 +85,7 @@ def main() -> int:
     if not отрезки:
         raise SystemExit("в описании нет строки «Отрезки в мастере: a-b, c-d.»")
     куски = [tuple(map(float, ч.strip().split("-"))) for ч in отрезки.group(1).split(",")]
-    окна = окна_кусков(куски)
+    окна = окна_кусков(куски, a.зазор) if a.зазор is not None else окна_кусков(куски)
     имя = md.stem + a.суффикс
 
     кэш = {}
