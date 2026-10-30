@@ -33,7 +33,7 @@ def разобрать_куски(текст: str) -> list[tuple[float, float]]:
     return куски  # порядок монтажа сохраняется, окна считаются отдельно
 
 
-def вырезать_окно(мастер: Path, выход: Path, начало: float, конец: float) -> None:
+def вырезать_окно(мастер: Path | str, выход: Path, начало: float, конец: float) -> None:
     выход.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         ["ffmpeg", "-y", "-v", "error", "-ss", f"{начало:.3f}", "-i", str(мастер),
@@ -70,7 +70,7 @@ def в_время_сырья(t: float, окна: list[list[float]]) -> float:
     raise SystemExit(f"секунда мастера {t} вне окон {окна}")
 
 
-def вырезать_окна(мастер: Path, выход: Path, окна: list[list[float]]) -> None:
+def вырезать_окна(мастер: Path | str, выход: Path, окна: list[list[float]]) -> None:
     if len(окна) == 1:
         вырезать_окно(мастер, выход, окна[0][0], окна[0][1])
         return
@@ -134,7 +134,9 @@ def main(аргументы=None) -> int:
     окна = окна_кусков(куски)
     исходник = f"{a.ролик}.mp4"
 
-    вырезать_окна(Path(a.мастер), корень / "raw" / исходник, окна)
+    # Мастер может быть и ссылкой http (rclone serve http поверх Драйва): тогда путь не оборачивается в Path
+    мастер = a.мастер if a.мастер.startswith(("http://", "https://")) else Path(a.мастер)
+    вырезать_окна(мастер, корень / "raw" / исходник, окна)
     (корень / "transcripts").mkdir(exist_ok=True)
     (корень / "transcripts" / f"{a.ролик}.json").write_text(
         json.dumps(слова_окна(Path(a.слова), окна), ensure_ascii=False, indent=1), encoding="utf-8")
