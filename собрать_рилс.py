@@ -115,7 +115,7 @@ def _прочитать_поворот(исходник: Path) -> tuple[int | No
             "-select_streams",
             "v:0",
             "-show_entries",
-            "stream=width,height:side_data=rotation",
+            "stream=width,height:stream_side_data=rotation",   # только заголовок потока: без stream_ ffprobe читает весь файл по кадрам
             "-of",
             "default=nw=1:nk=0",
             str(исходник),
